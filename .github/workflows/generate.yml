@@ -1,0 +1,49 @@
+name: Generate APA's TPAC planning page and schedule
+
+on:
+  issues:
+  workflow_dispatch:
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    permissions:
+      issues: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: "matatk/tpac-scheduling-helper"
+          ref: "main"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "lts/*"
+      # Simplify this in line with Jeffrey's suggestion for the TAG
+      - run: npm ci || npm install
+      - run: npx tsx tsh.ts -c tpac.ics -r w3c/apa-tpac-meetings 2026 -r w3ctag/tpac2026-meetings -p planning.html -s schedule.html
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Lay out the Pages site
+        run: |
+          mkdir -p _site
+          mv planning.html schedule.html _site/
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy-pages:
+    needs: build
+    permissions:
+      pages: write      # to deploy to Pages
+      id-token: write   # to verify the deployment originates from an appropriate source
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
